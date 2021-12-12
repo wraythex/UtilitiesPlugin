@@ -1,0 +1,220 @@
+{% extends "base.html" %}
+
+{% block header %}
+<style>
+<link rel="stylesheet" href="static/style/madmin.css"/>
+</style>
+{% endblock %}
+
+{% block scripts %}
+<style>
+div.container {
+  width: 80%;
+}
+div.container[role="main"] {
+  max-width: 100%;
+  padding: 0px !important;
+  margin-bottom: 40px;
+}
+table.dataTable tbody td {
+  padding: 4px 4px;
+}
+.table td, .table th {
+  vertical-align: middle;
+}
+</style>
+<script>
+{% if not pub %}
+
+  $("#show-data-status").on("click", 'button.delete', function (e) {
+      e.stopImmediatePropagation();
+      var r = confirm("Do you really want to delete old (8+ days) pokestops?");
+      if (r != true) {
+          return;
+      }
+      var delete_div = $(this).find(".delete_div");
+
+      delete_div.empty();
+      elem = $(document.createElement("img")).attr({
+          'id': "workingDel",
+          'src': "{{ url_for('static', filename='loading.gif') }}",
+          'class': 'convert_disp fa',
+          'width': '13px',
+          'heigth': '13px'
+      });
+      delete_div.append(elem);
+      var areaid = $(this).data('name');
+
+      $.ajax({
+          type: 'GET',
+          url : "utilities_del_oldpoi",
+          data: 'areaid=' + areaid + '&poi=pokestops',
+          success: function (msg) {
+              if (msg.status == 'success') {
+                  dataTable.ajax.reload(null, false);
+              }
+              delete_div.empty();
+              elem = $(document.createElement("i")).attr({
+                  'class': 'fa fa-trash',
+              });
+              delete_div.append(elem);
+              alert("Successfully deleted old (8+ days) poi: " + msg);
+          },
+          error: function (msg) {
+              alert(msg);
+              delete_div.empty();
+              elem = $(document.createElement("i")).attr({
+                  'class': 'fa fa-minus-circle',
+              });
+              delete_div.append(elem);
+          }
+      });
+
+  });
+
+
+  $(document).ready(function () {
+
+    getStats = document.getElementById('getStats');
+    var dataTable = $("#show-data-status").DataTable({
+      "lengthMenu": [ [10, 25, 50, 100, -1], [10, 25, 50, 100, "All"] ],
+      "columns": [
+          {data: 'areaName', title: 'Area Name'},
+          {data: 'polyName', title: 'Poly Name'},
+          {data: 'totalStops', title: 'Total Stops'},
+          {data: 'scannedToday', title: 'Scanned Today'},
+          {data: 'routeLength', title: 'Route Length'},
+          {data: 'questsToday', title: 'Quests Today'},
+          {data: 'nonWayPointStops', title: 'Non-WP Stops'},
+          {data: 'nonStopWayPoints', title: 'Non-Stop WPs'},
+          {data: 'noNameStops', title: 'Nameless Stops'},
+          {data: 'notScannedToday', title: 'Not Scanned Today'},
+          {data: 'notScanned17', title: 'Not Scanned 1-7 days'},
+          {data: 'notScanned8p', title: 'Not Scanned 8+ days'},
+          {data: 'buttons', title: '', responsivePriority: 4, orderable: false, className: "text-nowrap"} // for buttons
+      ],
+      "order": [[0, "asc"]],
+      "createdRow": function ( row, data, index ) {
+        $(row).addClass('area_container');
+        $(row).attr('data-areaid', data['areaName']);
+      },
+      "autoWidth": false,
+      "stateSave": true,
+      "stateDuration": 0
+    });
+
+    var showAllButton = $('#btn-show-all-children')
+    var hideAllButton = $('#btn-hide-all-children')
+
+    // Hide expand all hide all if table is not responsive
+    if (dataTable.responsive.hasHidden()){
+      showAllButton.show()
+      hideAllButton.show()
+    }else{
+      showAllButton.hide()
+      hideAllButton.hide()
+    }
+
+      // Handle click on "Expand All" button
+    showAllButton.on('click', function(){
+      // Expand row details
+      dataTable.rows(':not(.parent)').nodes().to$().find('td:first-child').trigger('click');
+    });
+
+    // Handle click on "Collapse All" button
+    hideAllButton.on('click', function(){
+      // Collapse row details
+      dataTable.rows('.parent').nodes().to$().find('td:first-child').trigger('click');
+    });
+
+    getStats.addEventListener('click', function(event) {
+      event.preventDefault(); // prevent page reload
+
+      if (confirm('Gathering stats may take 30+ seconds, proceed?')) {
+        $.blockUI({ message: '<img src="{{ url_for('static', filename='loading.gif') }}" width="100px" /><br /><h2>Gathering Pokestop Stats...</h2>' });
+        $.ajax({
+          type: "GET",
+          url: "utilities_sstats",
+          data: {},
+          success: function ( result ) {
+            dataTable.clear().draw();
+            for (var key in result) {
+              var res = result[key];
+              dataTable.row.add(res).draw();
+            }
+            $.unblockUI();
+          }
+        });
+      }
+    });
+  });
+
+{% endif %}
+</script>
+{% endblock %}
+
+{% block content %}
+
+<nav class="nav nav-pills nav-fill mt-3 mb-3 flex-column flex-sm-row">
+    <a class="flex-sm-fill text-sm-center nav-link {{ "active" if subtab == "quests" }}" href="{{ url_for('Utilities Plugin.utilities_quests') }}">Quests</a>
+    <a class="flex-sm-fill text-sm-center nav-link {{ "active" if subtab == "stops" }}" href="{{ url_for('Utilities Plugin.utilities_stops') }}">Stops</a>
+    <a class="flex-sm-fill text-sm-center nav-link {{ "active" if subtab == "gyms"}}" href="{{ url_for('Utilities Plugin.utilities_gyms') }}">Gyms</a>
+    <a class="flex-sm-fill text-sm-center nav-link {{ "active" if subtab == "pokemon" }}" href="{{ url_for('Utilities Plugin.utilities_pokemon') }}">Pokemon</a>
+</nav>
+
+<div class="container" role="main">
+
+<br />
+<h3>Utilities Plugin - Pokestop Maintenance</h3>
+
+<div style="text-align: right;">
+    <button id="btn-show-all-children" class="btn btn-success btn-sm" type="button">Expand All</button>
+    <button id="btn-hide-all-children" class="btn btn-success btn-sm" type="button">Collapse All</button>
+</div>
+<br />
+<div class="row">
+    <div class="col">
+        <table id="show-data-status" class="table"></table>
+    </div>
+</div>
+
+<div style="text-align: right;">
+    <button id="getStats" type="button">Get Pokestop Statistics</button>
+</div>
+
+<br />
+
+<div class="row">
+ <div class="col">
+  <div class="alert alert-primary">
+Explanation of each column:<br />
+<b>Area Name</b> = Settings->Area->Pokestops quest area name<br />
+<b>Poly Name</b> = [name]-ed area inside the <i>Area Name</i> included geofence<br />
+<b>Total Stops</b> = Total number of stops in the <i>Poly Name</i> area<br />
+<b>Scanned Today</b> = Total number of stops, in the <i>Poly Name</i> area, seen by a worker today<br />
+<b>Route Length</b> = Total number of pokestop way-points across the entire <i>Area Name</i><br />
+<b>Quests Today</b> = Total number of quests picked up today in <i>Poly Name</i><br />
+<b>Non-WP Stops</b> = Non waypoint stops = Total number of pokestops not covered by a waypoint in the quest route (new or moved stops)<br />
+<b>Non-Stop WPs</b> = Non stop waypoints = Total number of waypoints in quest route without a pokestop under them (moved or deleted stops)<br />
+<b>Nameless Stops</b> = Pokestops in your database that don't have a name<br />
+<b>Not Scanned Today</b> = Total number of pokestops, in <i>Poly Name</i> area, not scanned today<br />
+<b>Not Scanned 1-7 Days</b> = Total number of pokestops, in <i>Poly Name</i> area, not scanned for the last 7 days<br />
+<b>Not Scanned 8+ Days</b> = Total number of pokestops, in <i>Poly Name</i> area, not scanned for 8 or more days<br />
+  </div>
+  <div class="alert alert-primary">
+Button explanation and possible actions to take:<br />
+<b>Red Trash button</b> = Delete pokestops, from <i>Poly Name</i> area, that have not been scanned for 8+ days<br />
+<br />
+Recalculate Your Quest Route If:<br />
+1) You have stops not scanned for 8+ days (click the trash can icon to delete these old stops)<br />
+2) You have (Non-WP Stops) pokestops not covered by a waypoint in a quest route<br />
+3) You have (Non-Stop WPs) waypoints with no pokestops under them<br />
+<br />
+If you have Nameless Pokestops, visit MAD discord, and view pinned messages in the Pogodroid channel for help getting these names<br />
+  </div>
+ </div>
+</div>
+
+</div>
+{% endblock %}
+

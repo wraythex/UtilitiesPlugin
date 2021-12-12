@@ -1,0 +1,277 @@
+{% extends "base.html" %}
+
+{% block header %}
+<style>
+<link rel="stylesheet" href="static/style/madmin.css"/>
+</style>
+{% endblock %}
+
+{% block scripts %}
+<style>
+div.container {
+  width: 80%;
+}
+div.container[role="main"] {
+  max-width: 100%;
+  padding: 0px !important;
+  margin-bottom: 40px;
+}
+</style>
+<script>
+{% if not pub %}
+
+  function recalculate_route() {
+    if(confirm('Are you sure you want to recalculate this route?')) {
+      var elem = $(this);
+      loadingBlockUI("Recalculating routefile")
+      rpc_call = {
+        'call': 'recalculate'
+      }
+      $.ajax({
+        url : "{{ url_for('api_area') }}/"+ $(this).data('areaid'),
+        contentType : 'application/json-rpc',
+        data: JSON.stringify(rpc_call),
+        type : 'POST',
+        success: function(data, status, xhr) {
+          if(xhr.status == 204) {
+            alert('Recalculation successfully started');
+          }
+          $.unblockUI();
+          check_recalc_status();
+        },
+        error: function(data, status, xhr) {
+          alert('Unable to recalculate the area.  Please look at server logs');
+          $.unblockUI();
+          check_recalc_status();
+        }
+      });
+    }
+  }
+
+  function check_recalc_status() {
+    $.ajax({
+      url : "{{ url_for('recalc_status') }}",
+      type : 'GET',
+      success: function(data, status, xhr) {
+        if(xhr.status == 200) {
+          var in_recalc = xhr.responseJSON;
+          $.each($(".area_container"), function () {
+            var area_id = $(this).data('areaid');
+            var recalc_div = $(this).find(".recalc_div");
+            var recalc_elem = $(this).find(".recalc_disp");
+            var recalc_status = $(recalc_elem).data('recalc');
+            var elem;
+            if(in_recalc.includes(area_id)) {
+              if(recalc_status == 0 || recalc_status == undefined) {
+                elem = $(document.createElement("img")).attr({
+                  'src': "{{ url_for('static', filename='loading.gif') }}",
+                  'class': 'recalc_disp',
+                  'data-recalc': 1,
+                  'width': '32px',
+                  'heigth': '30px'
+                });
+              }
+            } else {
+              if(recalc_status == '1' || recalc_status == undefined) {
+                var fa_img = $(document.createElement("i")).attr({
+                  'class': "fa fa-sync"
+                });
+                elem = $(document.createElement("button")).attr({
+                  'class': 'recalc_disp btn btn-info btn-sm',
+                  'data-areaid': area_id,
+                  'data-recalc': 0,
+                }).bind('click', recalculate_route).append(fa_img);
+              }
+            }
+            if(elem) {
+              recalc_div.empty().append(elem);
+            }
+          });
+        }
+      },
+      error: function(data, status, xhr) {
+          alert('Unable to get recalc status.  Can you reach the server?');
+      }
+    });
+  }
+
+  $("#show-data-status").on("click", 'button.recalc', function (e) {
+    if(confirm('Are you sure you want to recalculate this route?')) {
+        var elem = $(this);
+        loadingBlockUI("Recalculating routefile")
+        rpc_call = {
+          'call': 'recalculate'
+        }
+        $.ajax({
+            url : "{{ url_for('api_area') }}/"+ $(this).data('areaid'),
+            contentType : 'application/json-rpc',
+            data: JSON.stringify(rpc_call),
+            type : 'POST',
+            success: function(data, status, xhr) {
+                if(xhr.status == 204) {
+                  alert('Recalculation successfully started');
+                }
+                $.unblockUI();
+                check_recalc_status();
+            },
+            error: function(data, status, xhr) {
+                alert('Unable to recalculate the area.  Please look at server logs');
+                $.unblockUI();
+                check_recalc_status();
+            }
+        });
+    }
+  });
+
+  $("#show-data-status").on("click", 'button.delete', function (e) {
+      e.stopImmediatePropagation();
+      var r = confirm("Do you really want to delete old (8+ days) pokestops?");
+      if (r != true) {
+          return;
+      }
+      var delete_div = $(this).find(".delete_div");
+
+      delete_div.empty();
+      elem = $(document.createElement("img")).attr({
+          'src': "{{ url_for('static', filename='loading.gif') }}",
+          'class': 'convert_disp fa',
+          'width': '13px',
+          'heigth': '13px'
+      });
+      delete_div.append(elem);
+      var areaid = $(this).data('name');
+
+
+      $.ajax({
+          type: 'GET',
+          url : "utilities_del_oldpoi",
+          data: 'areaid=' + areaid + '&poi=pokestops',
+          success: function (msg) {
+              if (msg.status == 'success') {
+                  dataTable.ajax.reload(null, false);
+              }
+          },
+          error: function (msg) {
+              alert(msg);
+              delete_div.empty();
+              elem = $(document.createElement("i")).attr({
+                  'class': 'fa fa-minus-circle',
+              });
+              delete_div.append(elem);
+          }
+      });
+
+  });
+
+
+  $(document).ready(function () {
+
+    getStats = document.getElementById('getStats');
+    var dataTable = $("#show-data-status").DataTable({
+      "lengthMenu": [ [10, 25, 50, 100, -1], [10, 25, 50, 100, "All"] ],
+      "columns": [
+          {data: 'areaName', title: 'Area Name'},
+          {data: 'polyName', title: 'Poly Name'},
+          {data: 'totalStops', title: 'Total Stops'},
+          {data: 'scannedToday', title: 'Scanned Today'},
+          {data: 'routeLength', title: 'Route Length'},
+          {data: 'questsToday', title: 'Quests Today'},
+          {data: 'nonWayPointStops', title: 'Non-WP Stops'},
+          {data: 'nonStopWayPoints', title: 'Non-Stop WPs'},
+          {data: 'noNameStops', title: 'Nameless Stops'},
+          {data: 'notScannedToday', title: 'Not Scanned Today'},
+          {data: 'notScanned17', title: 'Not Scanned 1-7 days'},
+          {data: 'notScanned8p', title: 'Not Scanned 8+ days'},
+          {data: 'buttons', title: '', responsivePriority: 4, orderable: false, className: "text-nowrap"} // for buttons
+      ],
+      "order": [[0, "asc"]],
+      "createdRow": function ( row, data, index ) {
+        $(row).addClass('area_container');
+        $(row).attr('data-areaid', data['areaName'])
+      },
+      "autoWidth": false,
+      "stateSave": true,
+      "stateDuration": 0
+    });
+
+    var showAllButton = $('#btn-show-all-children')
+    var hideAllButton = $('#btn-hide-all-children')
+
+    // Hide expand all hide all if table is not responsive
+    if (dataTable.responsive.hasHidden()){
+      showAllButton.show()
+      hideAllButton.show()
+    }else{
+      showAllButton.hide()
+      hideAllButton.hide()
+    }
+
+      // Handle click on "Expand All" button
+    showAllButton.on('click', function(){
+      // Expand row details
+      dataTable.rows(':not(.parent)').nodes().to$().find('td:first-child').trigger('click');
+    });
+
+    // Handle click on "Collapse All" button
+    hideAllButton.on('click', function(){
+      // Collapse row details
+      dataTable.rows('.parent').nodes().to$().find('td:first-child').trigger('click');
+    });
+
+    getStats.addEventListener('click', function(event) {
+      event.preventDefault(); // prevent page reload
+
+      if (confirm('Are you sure you want to gather pokestop stats?')) {
+        $.blockUI({ message: '<img src="{{ url_for('static', filename='loading.gif') }}" width="100px" /><br /><h2>Gathering Pokestop Stats...</h2>' });
+        $.ajax({
+          type: "GET",
+          url: "utilities_sstats",
+          data: {},
+          success: function ( result ) {
+            dataTable.clear().draw();
+            for (var key in result) {
+              var res = result[key];
+              console.log(res);
+              dataTable.row.add(res).draw();
+            }
+            $.unblockUI();
+          }
+        });
+      }
+    });
+    check_recalc_status();
+    setInterval(check_recalc_status, 5000);
+  });
+
+{% endif %}
+</script>
+{% endblock %}
+
+{% block content %}
+
+<nav class="nav nav-pills nav-fill mt-3 mb-3 flex-column flex-sm-row">
+    <a class="flex-sm-fill text-sm-center nav-link {{ "active" if subtab == "quests" }}" href="{{ url_for('Utilities Plugin.utilities_quests') }}">Quests</a>
+    <a class="flex-sm-fill text-sm-center nav-link {{ "active" if subtab == "stops" }}" href="{{ url_for('Utilities Plugin.utilities_stops') }}">Stops</a>
+    <a class="flex-sm-fill text-sm-center nav-link {{ "active" if subtab == "gyms"}}" href="{{ url_for('Utilities Plugin.utilities_gyms') }}">Gyms</a>
+    <a class="flex-sm-fill text-sm-center nav-link {{ "active" if subtab == "pokemon" }}" href="{{ url_for('Utilities Plugin.utilities_pokemon') }}">Pokemon</a>
+</nav>
+
+<br />
+<h3>Utilities Plugin - Pokestop Maintenance</h3>
+<br />
+
+<div style="text-align: right;">
+    <button id="btn-show-all-children" class="btn btn-success btn-sm" type="button">Expand All</button>
+    <button id="btn-hide-all-children" class="btn btn-success btn-sm" type="button">Collapse All</button>
+</div>
+<br>
+<div class="row">
+    <div class="col">
+        <table id="show-data-status" class="table"></table>
+    </div>
+</div>
+
+<div style="text-align: right;">
+    <button id="getStats" type="button">Get Pokestop Statistics</button>
+</div>
+{% endblock %}
