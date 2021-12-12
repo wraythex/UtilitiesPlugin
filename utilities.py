@@ -6,7 +6,7 @@ import os, time, ast
 from datetime import datetime, timedelta
 
 
-class MadPluginExample(mapadroid.utils.pluginBase.Plugin):
+class MadUtilitiesPlugin(mapadroid.utils.pluginBase.Plugin):
     """This plugin is just the identity function: it returns the argument
     """
     # =============================================================================================
